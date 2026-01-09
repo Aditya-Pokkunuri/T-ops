@@ -3,8 +3,8 @@ import { Send, Bot, User, MessageSquare, X, Move, Loader } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../../../../lib/supabaseClient';
 
-const CHATBOT_API_URL = 'http://localhost:8000/api/chatbot/query';
-const SMART_BUTTONS_URL = 'http://localhost:8000/api/chatbot/context-buttons';
+const CHATBOT_API_URL = 'http://localhost:5000/chat';
+const SMART_BUTTONS_URL = 'http://localhost:5000/api/chatbot/context-buttons';
 
 const Chatbot = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -75,7 +75,7 @@ const Chatbot = () => {
 
         try {
             // Check if AI Gateway is running
-            const healthCheck = await fetch('http://localhost:8000/health').catch(() => null);
+            const healthCheck = await fetch('http://localhost:5000/health').catch(() => null);
 
             if (!healthCheck || !healthCheck.ok) {
                 setMessages(prev => [...prev, {
@@ -104,28 +104,29 @@ const Chatbot = () => {
                 }]);
             }
 
-            // Send query to AI Gateway with RAG
+            // Send query to LLM Backend
             const response = await fetch(CHATBOT_API_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    query: cleanQuery || userMessage,
-                    context: {
-                        route: location.pathname,
-                        module: location.pathname.split('/').pop() || 'dashboard',
-                        role: userProfile?.role || 'executive',
-                        user_id: userProfile?.id || 'guest'
-                    },
-                    tagged_doc: taggedDoc ? { document_id: taggedDoc } : null
+                    message: cleanQuery || userMessage,
+                    user_id: userProfile?.id || 'guest',
+                    role: userProfile?.role || 'employee',
+                    team_id: userProfile?.team_id || null
                 })
             });
 
             const data = await response.json();
 
-            // Handle RAG response
-            if (data.answer) {
+            // Handle LLM Backend response
+            if (data.message) {
+                setMessages(prev => [...prev, {
+                    role: 'ai',
+                    text: data.message
+                }]);
+            } else if (data.answer) {
                 let messageText = data.answer;
 
                 // Add confidence indicator
@@ -151,14 +152,14 @@ const Chatbot = () => {
             } else {
                 setMessages(prev => [...prev, {
                     role: 'ai',
-                    text: data.message || 'I processed your request.'
+                    text: 'I processed your request.'
                 }]);
             }
         } catch (error) {
             console.error('Chatbot error:', error);
             setMessages(prev => [...prev, {
                 role: 'ai',
-                text: `❌ Error: ${error.message}\n\nMake sure the AI Gateway is running on http://localhost:8000`
+                text: `❌ Error: ${error.message}\n\nMake sure the LLM Backend is running on http://localhost:5000`
             }]);
         } finally {
             setIsLoading(false);
